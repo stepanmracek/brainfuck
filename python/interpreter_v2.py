@@ -12,10 +12,10 @@ class Program:
 
 def tokenize(source: str) -> tuple[tuple[str, int],...]:
     source = (token for token in source if token in "<>+-[].")
-    # group only "<>+-.", for brackets "[]" create special key (pos, token) with unique pos which
-    # ensures that consequent brackets won't be grouped
-    source = groupby(enumerate(source), key=lambda token: token[1] if token[1] in "<>+-." else token)
-    # convert special brackets tokens (pos, token) to just token
+    # group only "<>+-", for brackets and IO ("[].") create special key (pos, token) with unique pos which
+    # ensures that consequent brackets and IO statements won't be grouped
+    source = groupby(enumerate(source), key=lambda token: token[1] if token[1] in "<>+-" else token)
+    # convert special brackets and IO tokens (pos, token) to just token
     source = (
         (token[1], 1) if isinstance(token, tuple) else (token, len(list(group)))
         for token, group in source
@@ -76,12 +76,14 @@ def interpret(program: Program):
             break
         instruction_pointer += 1
 
+
 def main():
     with open(sys.argv[1], "rt") as f:
         source = f.read()
     
     program = parse(source)
     interpret(program)
+
 
 if __name__ == "__main__":
     main()
