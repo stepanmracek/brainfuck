@@ -1,101 +1,87 @@
 import sys
 from dataclasses import dataclass
-from numba import njit
+from itertools import groupby, chain
+from typing import Iterable
+
 
 @dataclass
 class Program:
-    tokens: list[str]
-    opening_to_closing: dict[int, int]
-    closing_to_opening: dict[int, int]
+    tokens: tuple[tuple[str, int],...]
+    matching_brackets: dict[int, int]
+
+
+def tokenize(source: str) -> tuple[tuple[str, int],...]:
+    source = (token for token in source if token in "<>+-[].")
+    # group only "<>+-.", for brackets "[]" create special key (pos, token) with unique pos which
+    # ensures that consequent brackets won't be grouped
+    source = groupby(enumerate(source), key=lambda token: token[1] if token[1] in "<>+-." else token)
+    # convert special brackets tokens (pos, token) to just token
+    source = (
+        (token[1], 1) if isinstance(token, tuple) else (token, len(list(group)))
+        for token, group in source
+    )
+    # append special term statement
+    return tuple(chain(source, (('x', 0),)))
+
+
+def find_matching_brackets(tokens: tuple[tuple[str, int],...]) -> dict[int, int]:
+    opened_brackets: list[int] = []
+    matching_brackets: dict[int, int] = {}
+
+    for i, (token, count) in enumerate(tokens):
+        if token == "[":
+            opened_brackets.append(i)
+        elif token == "]":
+            j = opened_brackets.pop()
+            matching_brackets[i] = j
+            matching_brackets[j] = i
+
+    return matching_brackets
+
 
 def parse(source: str):
-    tokens: list[str] = []
-    opened_brackets: list[int] = []
-    matching_brackets: list[tuple[int, int]] = []
-    opening_to_closing: dict[int, int] = {}
-    closing_to_opening: dict[int, int] = {}
+    tokens = tokenize(source)
+    matching_brackets = find_matching_brackets(tokens)
 
-    source = (token for token in source if token in "<>+-[].")
-    for i, token in enumerate(source):
-        if token in "<>+-.":
-            tokens.append(token)
-        elif token == "[":
-            opened_brackets.append(i)
-            tokens.append(token)
-        elif token == "]":
-            matching_brackets.append((opened_brackets.pop(), i))
-            tokens.append(token)
-    tokens.append('x');
-
-    for opening, closing in matching_brackets:
-        opening_to_closing[opening] = closing
-        closing_to_opening[closing] = opening;
-        
     return Program(
         tokens=tokens,
-        opening_to_closing=opening_to_closing,
-        closing_to_opening=closing_to_opening,
+        matching_brackets=matching_brackets,
     )
 
 
-#@njit
-def interpret(
-    tokens: list[str],
-    opening_to_closing: list[int],
-    closing_to_opening: list[int]
-):
-    memory = [0] * 65535
+def interpret(program: Program):
+    memory = [0] * 65536
     instruction_pointer = 0
     data_pointer = 0
 
     while True:
-        token = tokens[instruction_pointer]
+        token, count = program.tokens[instruction_pointer]
         if token == '+':
-            memory[data_pointer] = (memory[data_pointer] + 1) % 256
-            instruction_pointer += 1
+            memory[data_pointer] = (memory[data_pointer] + count) % 256
         elif token == '-':
-            memory[data_pointer] = (memory[data_pointer] - 1) % 256
-            instruction_pointer += 1
+            memory[data_pointer] = (memory[data_pointer] - count) % 256
         elif token == '>':
-            data_pointer += 1
-            instruction_pointer += 1
+            data_pointer += count
         elif token == '<':
-            data_pointer -= 1
-            instruction_pointer += 1
+            data_pointer -= count
         elif token == '[':
             if memory[data_pointer] == 0:
-                instruction_pointer = opening_to_closing[instruction_pointer] + 1
-            else:
-                instruction_pointer += 1
+                instruction_pointer = program.matching_brackets[instruction_pointer]
         elif token == ']':
-            if memory[data_pointer] == 0:
-                instruction_pointer += 1
-            else:
-                instruction_pointer = closing_to_opening[instruction_pointer] + 1
+            if memory[data_pointer] != 0:
+                instruction_pointer = program.matching_brackets[instruction_pointer]
         elif token == ".":
             print(chr(memory[data_pointer]), flush=True, end='')
-            #sys.stdout.write(chr(memory[data_pointer]))
-            instruction_pointer += 1
         elif token == 'x':
             break
-
-def dict_to_list(source: dict[int, int]):
-    max_key = max(source) + 1
-    result = [0]*max_key
-    for k,v in source.items():
-        result[k] = v
-    return result
+        instruction_pointer += 1
 
 def main():
     with open(sys.argv[1], "rt") as f:
         source = f.read()
     
     program = parse(source)
-    interpret(
-        program.tokens,
-        opening_to_closing=dict_to_list(program.opening_to_closing),
-        closing_to_opening=dict_to_list(program.closing_to_opening)
-    )
+    interpret(program)
 
 if __name__ == "__main__":
     main()
