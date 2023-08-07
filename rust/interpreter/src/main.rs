@@ -1,6 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::fs;
-use std::io::{stdout, Write};
+use std::io::{Read, Write};
 
 #[derive(Debug)]
 struct Program {
@@ -9,8 +8,8 @@ struct Program {
 }
 
 fn tokenize(program: &str) -> Vec<(char, usize)> {
-    let valit_tokens: HashSet<char> = HashSet::from(['<', '>', '+', '-', '[', ']', '.']);
-    let non_compressable_tokens: HashSet<char> = HashSet::from(['[', ']', '.']);
+    let valit_tokens: HashSet<char> = HashSet::from(['<', '>', '+', '-', '[', ']', '.', ',']);
+    let non_compressable_tokens: HashSet<char> = HashSet::from(['[', ']', '.', ',']);
 
     let mut tokens: Vec<(char, usize)> = vec![];
     let mut last_token = '_';
@@ -63,30 +62,28 @@ fn interpret(program: Program) {
     let mut data_pointer: usize = 0;
 
     loop {
-        let token = program.tokens[instruction_pointer];
-        match token {
-            ('+', count) => memory[data_pointer] = (memory[data_pointer] as usize + count) as u8,
-            ('-', count) => memory[data_pointer] = (memory[data_pointer] as usize - count) as u8,
-            ('>', count) => data_pointer += count,
-            ('<', count) => data_pointer -= count,
-            ('[', _) => {
-                if memory[data_pointer] == 0 {
-                    instruction_pointer =
-                        *program.matching_brackets.get(&instruction_pointer).unwrap();
-                }
-            }
-            (']', _) => {
-                if memory[data_pointer] != 0 {
-                    instruction_pointer =
-                        *program.matching_brackets.get(&instruction_pointer).unwrap();
-                }
-            }
-            ('.', _) => {
-                print!("{}", memory[data_pointer] as char);
-                let _ = stdout().flush();
-            }
-            ('x', _) => break,
-            _ => {}
+        let (token, count) = program.tokens[instruction_pointer];
+        if token == '+' {
+            memory[data_pointer] = (memory[data_pointer] as usize + count) as u8;
+        } else if token == '-' {
+            memory[data_pointer] = (memory[data_pointer] as usize - count) as u8;
+        } else if token == '>' {
+            data_pointer += count;
+        } else if token == '<' {
+            data_pointer -= count;
+        } else if token == '[' && memory[data_pointer] == 0 {
+            instruction_pointer = *program.matching_brackets.get(&instruction_pointer).unwrap();
+        } else if token == ']' && memory[data_pointer] != 0 {
+            instruction_pointer = *program.matching_brackets.get(&instruction_pointer).unwrap();
+        } else if token == '.' {
+            print!("{}", memory[data_pointer] as char);
+            let _ = std::io::stdout().flush();
+        } else if token == ',' {
+            let mut input: [u8; 1] = [0];
+            std::io::stdin().read(&mut input).unwrap();
+            memory[data_pointer] = input[0];
+        } else if token == 'x' {
+            break;
         }
         instruction_pointer += 1;
     }
@@ -94,7 +91,7 @@ fn interpret(program: Program) {
 
 fn main() {
     let file = std::env::args().last().unwrap();
-    let source = fs::read_to_string(file).unwrap();
+    let source = std::fs::read_to_string(file).unwrap();
     let program = parse(&source);
     interpret(program)
 }

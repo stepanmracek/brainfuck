@@ -11,7 +11,7 @@ class Program:
 
 
 def tokenize(source: str) -> tuple[tuple[str, int],...]:
-    source = (token for token in source if token in "<>+-[].")
+    source = (token for token in source if token in "<>+-[].,")
     # group only "<>+-", for brackets and IO ("[].") create special key (pos, token) with unique pos which
     # ensures that consequent brackets and IO statements won't be grouped
     source = groupby(enumerate(source), key=lambda token: token[1] if token[1] in "<>+-" else token)
@@ -72,6 +72,8 @@ def interpret(program: Program):
                 instruction_pointer = program.matching_brackets[instruction_pointer]
         elif token == ".":
             print(chr(memory[data_pointer]), flush=True, end='')
+        elif token == ",":
+            memory[data_pointer] = ord(sys.stdin.read(1))
         elif token == 'x':
             break
         instruction_pointer += 1
